@@ -1,3 +1,3 @@
-a 4D Tesseract Simulator with Rotation Slides
+a 4D Tesseract Simulator with Rotation Sliders
 <br>Go to:
 >>https://joenasriani.github.io/4d-tesseract-simulator/
