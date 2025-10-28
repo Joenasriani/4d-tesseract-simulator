@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- 
+      FIX: Added 'viewport-fit=cover' to enable safe area insets 
+      for notches and gesture bars.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Interactive 4D Tesseract Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html {
+            /* Fix for 100vh on mobile */
+            height: -webkit-fill-available;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            /* FIX: Use 100dvh (dynamic viewport height) 
+              and respect safe area insets.
+            */
+            height: 100dvh; 
+            /* Fallback for older browsers */
+            height: -webkit-fill-available;
+            
+            background-color: #111827;
+            overflow: hidden;
+            box-sizing: border-box;
+            
+            /* FIX: Apply safe area padding to the whole app.
+              This is the "safe zone" you asked for.
+            */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+        
+        #canvas-container {
+            flex-grow: 1;
+            width: 100%;
+            position: relative;
+            min-height: 0; /* Flexbox fix */
+        }
+
+        #canvas-container > canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        #controls {
+            flex-shrink: 0; /* Don't shrink */
+            background-color: rgba(31, 41, 55, 0.8);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(75, 85, 99, 0.5);
+            padding: 20px;
+            width: 100%;
+            box-sizing: border-box; /* Include padding in width */
+            position: relative;
+            z-index: 10;
+            
+            /* FIX: This is the critical change for mobile.
+              If the content (sliders) is too tall, this
+              panel will become vertically scrollable.
+            */
+            overflow-y: auto;
+            
+            /* Set a max-height to ensure the canvas
+              is always visible (e.g., max 40% of screen height)
+            */
+            max-height: 40vh;
+        }
+        
+        .slider-grid {
+            max-width: 800px;
+            margin: 0 auto;
+            display: grid;
+            /* 2 columns on small screens */
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        @media (min-width: 768px) {
+            .slider-grid {
+                /* 3 columns on larger screens */
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        label {
+            color: #d1d5db;
+            font-size: 0.875rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #4b5563;
+            border-radius: 4px;
+            outline: none;
+            opacity: 0.9;
+            transition: opacity 0.2s;
+            touch-action: pan-y; 
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #60a5fa;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #1f2937;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #60a5fa;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #1f2937;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- 
+      This controls panel will now scroll vertically
+      if the slider-grid is too tall for the screen.
+    -->
+    <div id="controls">
+        <div class="slider-grid">
+            <!-- 3D Rotations -->
+            <div>
+                <label for="xy-slider">
+                    <span>XY Rotation</span>
+                    <span id="xy-value">0°</span>
+                </label>
+                <input id="xy-slider" type="range" min="-3.14159" max="3.14159" value="0" step="0.01">
+            </div>
+            <div>
+                <label for="xz-slider">
+                    <span>XZ Rotation</span>
+                    <span id="xz-value">0°</span>
+                </label>
+                <input id="xz-slider" type="range" min="-3.14159" max="3.14159" value="0" step="0.01">
+            </div>
+            <div>
+                <label for="yz-slider">
+                    <span>YZ Rotation</span>
+                    <span id="yz-value">0°</span>
+                </label>
+                <input id="yz-slider" type="range" min="-3.14159" max="3.14159" value="0" step="0.01">
+            </div>
+            
+            <!-- 4D "Hyper" Rotations -->
+            <div>
+                <label for="xw-slider">
+                    <span>XW Rotation</span>
+                    <span id="xw-value">0°</span>
+                </label>
+                <input id="xw-slider" type="range" min="-3.14159" max="3.14159" value="0" step="0.01">
+            </div>
+            <div>
+                <label for="yw-slider">
+                    <span>YW Rotation</span>
+                    <span id="yw-value">0°</span>
+                </label>
+                <input id="yw-slider" type="range" min="-3.14159" max="3.14159" value="0" step="0.01">
+            </div>
+            <div>
+                <label for="zw-slider">
+                    <span>ZW Rotation</span>
+                    <span id="zw-value">0°</span>
+                </label>
+                <input id="zw-slider" type="range" min="-3.14159" max="3.14159" value="0" step="0.01">
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls;
+        let tesseractGroup, lineSegments;
+        
+        const canvasContainer = document.getElementById('canvas-container');
+
+        // 4D vertices
+        const vertices4D = [];
+        for (let i = 0; i < 16; i++) {
+            vertices4D.push(new THREE.Vector4(
+                (i & 1) ? 1 : -1,
+                (i & 2) ? 1 : -1,
+                (i & 4) ? 1 : -1,
+                (i & 8) ? 1 : -1
+            ));
+        }
+
+        // 32 edges
+        const edges = [];
+        for (let i = 0; i < 16; i++) {
+            for (let j = i + 1; j < 16; j++) {
+                let diff = 0;
+                if (vertices4D[i].x !== vertices4D[j].x) diff++;
+                if (vertices4D[i].y !== vertices4D[j].y) diff++;
+                if (vertices4D[i].z !== vertices4D[j].z) diff++;
+                if (vertices4D[i].w !== vertices4D[j].w) diff++;
+                
+                if (diff === 1) {
+                    edges.push(i, j);
+                }
+            }
+        }
+
+        let projectedVertices3D = new Float32Array(16 * 3);
+
+        // Get all 6 sliders and value displays
+        const xySlider = document.getElementById('xy-slider');
+        const xzSlider = document.getElementById('xz-slider');
+        const yzSlider = document.getElementById('yz-slider');
+        const xwSlider = document.getElementById('xw-slider');
+        const ywSlider = document.getElementById('yw-slider');
+        const zwSlider = document.getElementById('zw-slider');
+        
+        const xyValue = document.getElementById('xy-value');
+        const xzValue = document.getElementById('xz-value');
+        const yzValue = document.getElementById('yz-value');
+        const xwValue = document.getElementById('xw-value');
+        const ywValue = document.getElementById('yw-value');
+        const zwValue = document.getElementById('zw-value');
+
+        // Angle variables for all 6 rotations
+        let xyAngle = 0, xzAngle = 0, yzAngle = 0;
+        let xwAngle = 0, ywAngle = 0, zwAngle = 0;
+
+        // --- 4D Rotation Functions ---
+        function rotateXY(v, angle) {
+            const cos = Math.cos(angle), sin = Math.sin(angle);
+            const x = v.x * cos - v.y * sin;
+            const y = v.x * sin + v.y * cos;
+            return new THREE.Vector4(x, y, v.z, v.w);
+        }
+        
+        function rotateXZ(v, angle) {
+            const cos = Math.cos(angle), sin = Math.sin(angle);
+            const x = v.x * cos - v.z * sin;
+            const z = v.x * sin + v.z * cos;
+            return new THREE.Vector4(x, v.y, z, v.w);
+        }
+
+        function rotateYZ(v, angle) {
+            const cos = Math.cos(angle), sin = Math.sin(angle);
+            const y = v.y * cos - v.z * sin;
+            const z = v.y * sin + v.z * cos;
+            return new THREE.Vector4(v.x, y, z, v.w);
+        }
+
+        function rotateXW(v, angle) {
+            const cos = Math.cos(angle), sin = Math.sin(angle);
+            const x = v.x * cos - v.w * sin;
+            const w = v.x * sin + v.w * cos;
+            return new THREE.Vector4(x, v.y, v.z, w);
+        }
+
+        function rotateYW(v, angle) {
+            const cos = Math.cos(angle), sin = Math.sin(angle);
+            const y = v.y * cos - v.w * sin;
+            const w = v.y * sin + v.w * cos;
+            return new THREE.Vector4(v.x, y, v.z, w);
+        }
+
+        function rotateZW(v, angle) {
+            const cos = Math.cos(angle), sin = Math.sin(angle);
+            const z = v.z * cos - v.w * sin;
+            const w = v.z * sin + v.w * cos;
+            return new THREE.Vector4(v.x, v.y, z, w);
+        }
+
+        // --- 4D to 3D Projection ---
+        function project4Dto3D(v) {
+            const distance = 4;
+            // Add a small value to avoid division by zero if w ever equals distance
+            const w_perspective = distance / (distance - v.w + 0.0001); 
+            return new THREE.Vector3(
+                v.x * w_perspective,
+                v.y * w_perspective,
+                v.z * w_perspective
+            );
+        }
+
+        // --- Main Functions ---
+        function init() {
+            scene = new THREE.Scene();
+            
+            // Use clientWidth/Height which respects the container's final size
+            const width = canvasContainer.clientWidth;
+            const height = canvasContainer.clientHeight;
+
+            camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+            camera.position.z = 5;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            canvasContainer.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+            controls.enablePan = true; 
+
+            // Tesseract Geometry Setup
+            tesseractGroup = new THREE.Group();
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(projectedVertices3D, 3));
+            geometry.setIndex(edges);
+            const material = new THREE.LineBasicMaterial({
+                color: 0x60a5fa,
+                linewidth: 2
+            });
+            lineSegments = new THREE.LineSegments(geometry, material);
+            tesseractGroup.add(lineSegments);
+            scene.add(tesseractGroup);
+
+            // --- Event Listeners ---
+            const sliders = [
+                { slider: xySlider, value: xyValue, angle: 'xyAngle' },
+                { slider: xzSlider, value: xzValue, angle: 'xzAngle' },
+                { slider: yzSlider, value: yzValue, angle: 'yzAngle' },
+                { slider: xwSlider, value: xwValue, angle: 'xwAngle' },
+                { slider: ywSlider, value: ywValue, angle: 'ywAngle' },
+                { slider: zwSlider, value: zwValue, angle: 'zwAngle' },
+            ];
+            
+            // A map to hold angle values by name
+            let angles = {
+                xyAngle: 0, xzAngle: 0, yzAngle: 0,
+                xwAngle: 0, ywAngle: 0, zwAngle: 0
+            };
+
+            sliders.forEach(item => {
+                item.slider.addEventListener('input', (e) => {
+                    const newAngle = parseFloat(e.target.value);
+                    angles[item.angle] = newAngle; // Update the angle in the map
+                    item.value.textContent = `${(newAngle * 180 / Math.PI).toFixed(0)}°`;
+                });
+            });
+            
+            // Need to update global angles from the map
+            // This is a bit cleaner than using window[]
+            
+            xySlider.addEventListener('input', (e) => {
+                xyAngle = parseFloat(e.target.value);
+                xyValue.textContent = `${(xyAngle * 180 / Math.PI).toFixed(0)}°`;
+            });
+            xzSlider.addEventListener('input', (e) => {
+                xzAngle = parseFloat(e.target.value);
+                xzValue.textContent = `${(xzAngle * 180 / Math.PI).toFixed(0)}°`;
+            });
+            yzSlider.addEventListener('input', (e) => {
+                yzAngle = parseFloat(e.target.value);
+                yzValue.textContent = `${(yzAngle * 180 / Math.PI).toFixed(0)}°`;
+            });
+            xwSlider.addEventListener('input', (e) => {
+                xwAngle = parseFloat(e.target.value);
+                xwValue.textContent = `${(xwAngle * 180 / Math.PI).toFixed(0)}°`;
+            });
+            ywSlider.addEventListener('input', (e) => {
+                ywAngle = parseFloat(e.target.value);
+                ywValue.textContent = `${(ywAngle * 180 / Math.PI).toFixed(0)}°`;
+            });
+            zwSlider.addEventListener('input', (e) => {
+                zwAngle = parseFloat(e.target.value);
+                zwValue.textContent = `${(zwAngle * 180 / Math.PI).toFixed(0)}°`;
+            });
+
+            window.addEventListener('resize', onWindowResize);
+            onWindowResize(); // Call once on init
+        }
+        
+        function onWindowResize() {
+            if (!canvasContainer) return;
+            const width = canvasContainer.clientWidth;
+            const height = canvasContainer.clientHeight;
+            if (height === 0) return; 
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        function updateTesseract() {
+            const positions = lineSegments.geometry.attributes.position.array;
+            
+            for (let i = 0; i < 16; i++) {
+                let v = vertices4D[i].clone();
+                
+                v = rotateXY(v, xyAngle);
+                v = rotateXZ(v, xzAngle);
+                v = rotateYZ(v, yzAngle);
+                v = rotateXW(v, xwAngle);
+                v = rotateYW(v, ywAngle);
+                v = rotateZW(v, zwAngle);
+                
+                const v3D = project4Dto3D(v);
+                
+                positions[i * 3 + 0] = v3D.x;
+                positions[i * 3 + 1] = v3D.y;
+                positions[i * 3 + 2] = v3D.z;
+            }
+            
+            lineSegments.geometry.attributes.position.needsUpdate = true;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateTesseract();
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Start
+        init();
+        animate();
+
+    </script>
+</body>
+</html>
+
+
