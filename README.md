@@ -1,7 +1,7 @@
 # 4D Tesseract Simulator
 
 **Author:** Joe Nasr  
-**Canonical identity:** https://joe-nasr-signals.vercel.app/v2/
+**Identity:** https://joe-nasr-signals.vercel.app/v2/
 
 A browser visualization for exploring rotations of a tesseract through a projected view controlled with rotation sliders.
 
